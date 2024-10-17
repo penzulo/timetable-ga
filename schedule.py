@@ -1,15 +1,15 @@
+from random import choice, shuffle
+
 from constants import (
-    TIME_SLOT_DURATION,
-    LAB_TIME_SLOT_DURATION,
     DAYS_OF_WEEK,
-    UNIVERSITY_END_TIME,
-    UNIVERSITY_START_TIME,
+    LAB_TIME_SLOT_DURATION,
     LUNCH_BREAK_END,
     LUNCH_BREAK_START,
+    TIME_SLOT_DURATION,
+    UNIVERSITY_END_TIME,
+    UNIVERSITY_START_TIME,
 )
-from random import shuffle, choice
-from typing import Optional
-from models import ClassTime, Room, Professor, Course, Department, Panel
+from models import ClassTime, Course, Department, Panel, Professor, Room
 
 
 class Data:
@@ -70,22 +70,22 @@ class Data:
             current_time = UNIVERSITY_START_TIME
             while current_time + LAB_TIME_SLOT_DURATION <= UNIVERSITY_END_TIME:
                 if not (LUNCH_BREAK_START <= current_time < LUNCH_BREAK_END):
-                    class_time = ClassTime(
-                        id=f"MT{class_time_id}",
+                    class_time: ClassTime = ClassTime(
+                        class_id=f"MT{class_time_id}",
                         day=day,
                         time=current_time.strftime("%H:%M"),
                         duration=TIME_SLOT_DURATION,
                     )
-                    self.add_class_time(class_time)
+                    self.add_class_time(class_time=class_time)
                     class_time_id += 1
                     if current_time + LAB_TIME_SLOT_DURATION <= UNIVERSITY_END_TIME:
-                        lab_time = ClassTime(
-                            id=f"MT{class_time_id}",
+                        lab_time: ClassTime = ClassTime(
+                            class_id=f"MT{class_time_id}",
                             day=day,
                             time=current_time.strftime("%H:%M"),
                             duration=LAB_TIME_SLOT_DURATION,
                         )
-                        self.add_class_time(lab_time)
+                        self.add_class_time(class_time=lab_time)
                         class_time_id += 1
                 current_time += TIME_SLOT_DURATION
 
@@ -94,18 +94,26 @@ class Schedule:
     def __init__(self, data: Data, panel: Panel) -> None:
         self._data: Data = data
         self._panel: Panel = panel
-        self._classes: list[ClassTime] = []
+        self._classes: list[dict[str, str]] = []
         self._fitness: float = -1
         self._class_numb: int = 0
         self._is_fitness_changed: bool = True
 
-    def get_classes(self) -> list[ClassTime]:
+    @property
+    def data(self) -> Data:
+        return self._data
+
+    @property
+    def panel(self) -> Panel:
+        return self._panel
+
+    def get_classes(self) -> list[dict[str, str]]:
         self._is_fitness_changed = True
         return self._classes
 
     def initialize(self) -> "Schedule":
-        self._classes: list[dict[str, str | int]] = []
-        available_class_times = self._data.get_class_times().copy()
+        self._classes.clear()
+        available_class_times: list[ClassTime] = self._data.get_class_times().copy()
 
         for dept in self._data.get_depts():
             for course in dept.get_courses():
@@ -116,13 +124,13 @@ class Schedule:
                         if mt.get_duration() == TIME_SLOT_DURATION
                     ]
                     shuffle(lecture_class_times)
-                    lecture_class_time = lecture_class_times[0]
+                    lecture_class_time: ClassTime = lecture_class_times[0]
 
-                    available_rooms = self._data.get_rooms().copy()
+                    available_rooms: list[Room] = self._data.get_rooms().copy()
                     shuffle(available_rooms)
-                    room = available_rooms.pop()
+                    room: Room = available_rooms.pop()
 
-                    professor = (
+                    professor: Professor | None = (
                         choice(course.get_professors())
                         if course.get_professors()
                         else None
@@ -130,7 +138,11 @@ class Schedule:
 
                     if professor:
                         # Check for conflicts before assigning
-                        if self._check_conflicts(lecture_class_time, room, professor):
+                        if self._check_conflicts(
+                            class_time=lecture_class_time,
+                            room=room,
+                            professor=professor,
+                        ):
                             self._classes.append(
                                 {
                                     "panel": self._panel.get_name(),
@@ -146,15 +158,15 @@ class Schedule:
 
                 # Schedule Labs similarly...
                 for _ in range(course.get_labs_per_week()):
-                    lab_class_times = [
+                    lab_class_times: list[ClassTime] = [
                         mt
                         for mt in available_class_times
                         if mt.get_duration() == LAB_TIME_SLOT_DURATION
                     ]
                     shuffle(lab_class_times)
-                    lab_class_time = lab_class_times[0]
+                    lab_class_time: ClassTime = lab_class_times[0]
 
-                    available_lab_rooms = self._data.get_lab_rooms().copy()
+                    available_lab_rooms: list[Room] = self._data.get_lab_rooms().copy()
                     if len(available_lab_rooms) < self._panel.get_num_batches():
                         raise ValueError(
                             f"Not enough lab rooms to schedule labs for all batches in panel {self._panel.get_name()}."
@@ -162,7 +174,7 @@ class Schedule:
 
                     shuffle(available_lab_rooms)
                     for batch_num in range(1, self._panel.get_num_batches() + 1):
-                        lab_room = available_lab_rooms.pop()
+                        lab_room: Room = available_lab_rooms.pop()
                         professor = (
                             choice(course.get_professors())
                             if course.get_professors()
@@ -170,7 +182,9 @@ class Schedule:
                         )
                         if professor:
                             if self._check_conflicts(
-                                lab_class_time, lab_room, professor
+                                class_time=lab_class_time,
+                                room=lab_room,
+                                professor=professor,
                             ):
                                 self._classes.append(
                                     {
@@ -210,16 +224,19 @@ class Schedule:
 
     def calculate_fitness(self) -> float:
         conflicts: int = 0
-        classes: list[ClassTime] = self.get_classes()
+        classes: list[dict[str, str]] = self.get_classes()
         for i in range(len(classes)):
             for j in range(i + 1, len(classes)):
-                classA: ClassTime = classes[i]
-                classB: ClassTime = classes[j]
-                if classA["class_time"] == classB["class_time"]:
-                    if classA["room"] == classB["room"]:
+                class_a: dict[str, str] = classes[i]
+                class_b: dict[str, str] = classes[j]
+                if class_a["class_time"] == class_b["class_time"]:
+                    if class_a["room"] == class_b["room"]:
                         conflicts += 1
-                    if classA["professor"] == classB["professor"]:
+                    if class_a["professor"] == class_b["professor"]:
                         conflicts += 1
-                    if classA["batch"] == classB["batch"] and classA["batch"] != "All":
+                    if (
+                        class_a["batch"] == class_b["batch"]
+                        and class_a["batch"] != "All"
+                    ):
                         conflicts += 1
         return 1 / (1 + conflicts)

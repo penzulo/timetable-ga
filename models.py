@@ -2,8 +2,8 @@ from datetime import timedelta
 
 
 class Professor:
-    def __init__(self, id: str, name: str) -> None:
-        self._id: str = id
+    def __init__(self, professor_id: str, name: str) -> None:
+        self._id: str = professor_id
         self._name: str = name
 
     def get_id(self) -> str:
@@ -17,13 +17,13 @@ class Room:
     def __init__(self, number: str) -> None:
         self._number: str = number
 
-    def get_number(self) -> int:
+    def get_number(self) -> str:
         return self._number
 
 
 class ClassTime:
-    def __init__(self, id: str, day: str, time: str, duration: timedelta) -> None:
-        self._id: str = id
+    def __init__(self, class_id: str, day: str, time: str, duration: timedelta) -> None:
+        self._id: str = class_id
         self._day: str = day
         self._time: str = time
         self._duration: timedelta = duration
@@ -46,13 +46,13 @@ class Course:
         self,
         number: str,
         name: str,
-        professors: list[str],
+        professors: list[Professor],
         lectures_per_week: int,
         labs_per_week: int = 0,
     ) -> None:
         self._number: str = number
         self._name: str = name
-        self._professors: list[str] = professors
+        self._professors: list[Professor] = professors
         self._lectures_per_week: int = lectures_per_week
         self._labs_per_week: int = labs_per_week
 
@@ -62,7 +62,7 @@ class Course:
     def get_name(self) -> str:
         return self._name
 
-    def get_professors(self) -> list[str]:
+    def get_professors(self) -> list[Professor]:
         return self._professors
 
     def get_lectures_per_week(self) -> int:

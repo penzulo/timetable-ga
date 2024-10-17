@@ -1,9 +1,10 @@
 import streamlit as st
-from schedule import Data, Schedule
-from models import Room, Course, Professor, Department, Panel
-from genetic_alg import Population, GeneticAlgorithm
+
 from constants import GENERATIONS, POPULATION_SIZE
 from data import tabulate_schedule
+from genetic_alg import GeneticAlgorithm, Population
+from models import Course, Department, Panel, Professor, Room
+from schedule import Data, Schedule
 
 
 def main() -> None:
@@ -16,7 +17,9 @@ def main() -> None:
         label="Number of Rooms:", min_value=1, max_value=20, value=5, key="room_count"
     )
     for i in range(room_count):
-        room_number = st.text_input(f"Room {i + 1} Number:", key=f"room_number_{i}")
+        room_number: str = st.text_input(
+            f"Room {i + 1} Number:", key=f"room_number_{i}"
+        )
         data.add_room(Room(number=room_number))
 
     lab_room_count: int = st.number_input(
@@ -47,7 +50,7 @@ def main() -> None:
         professor_name: str = st.text_input(
             f"Professor {i + 1} Name:", key=f"professor_name_{i}"
         )
-        data.add_professor(Professor(f"I{i + 1}", professor_name))
+        data.add_professor(Professor(professor_id=f"I{i + 1}", name=professor_name))
 
     dept_count: int = st.number_input(
         label="Number of Departments:",
@@ -95,9 +98,8 @@ def main() -> None:
                 options=professor_options,
                 key=f"professors_{i}_{j}",
             )
-            # Potential fuck up in static typing:
-            # data.get_professors is a flawed method and does not definitively give a list of Professor(class)
-            professors = [
+
+            professors: list[Professor] = [
                 prof
                 for prof in data.get_professors()
                 if prof.get_name() in selected_professors
@@ -112,50 +114,51 @@ def main() -> None:
                     labs_per_week=course_labs,
                 )
             )
-        data.add_dept(Department(dept_name, courses))
-        panel_count: int = st.number_input(
-            label="Number of Panels:",
-            min_value=1,
-            max_value=15,
-            value=2,
-            key="panel_count",
-        )
-        for i in range(panel_count):
-            panel_name: str = st.text_input(
-                f"Panel {i + 1} Name:", key=f"panel_name_{i}"
-            )
-            num_batches: int = st.number_input(
-                label=f"Number of Batches in {panel_name}:",
-                min_value=1,
-                max_value=10,
-                value=2,
-                key=f"num_batches_{i}",
-            )
-        data.add_panel(Panel(name=panel_name, num_batches=num_batches))
-        if st.button("Generate Timetable"):
-            population: Population = Population(POPULATION_SIZE, data)
-            genetic_algorithm = GeneticAlgorithm()
-            for generation in range(GENERATIONS):
-                population: Population = genetic_algorithm.evolve(population)
-                best_schedule: Population = max(
-                    population.get_schedules(), key=lambda s: s.get_fitness()
-                )
-                if best_schedule.get_fitness() == 1.0:
-                    break
+        data.add_dept(Department(name=dept_name, courses=courses))
 
-            st.header("Generated Timetable")
-            for panel in data.get_panels():
-                st.subheader(f"Panel: {panel.get_name()}")
-                panel_schedules: list[Schedule] = [
-                    s for s in population.get_schedules() if s._panel == panel
-                ]
-                if panel_schedules:
-                    best_panel_schedule: Schedule = max(
-                        panel_schedules, key=lambda s: s.get_fitness()
-                    )
-                    tabulate_schedule(schedule=best_panel_schedule)
-                else:
-                    st.write(f"No schedule generated for panel {panel.get_name()}.")
+    panel_count: int = st.number_input(
+        label="Number of Panels:",
+        min_value=1,
+        max_value=15,
+        value=2,
+        key="panel_count",
+    )
+
+    for i in range(panel_count):
+        panel_name: str = st.text_input(f"Panel {i + 1} Name:", key=f"panel_name_{i}")
+        num_batches: int = st.number_input(
+            label=f"Number of Batches in {panel_name}:",
+            min_value=1,
+            max_value=10,
+            value=2,
+            key=f"num_batches_{i}",
+        )
+        data.add_panel(Panel(name=panel_name, num_batches=num_batches))
+
+    if st.button(label="Generate Timetable"):
+        population: Population = Population(size=POPULATION_SIZE, data=data)
+        genetic_algorithm: GeneticAlgorithm = GeneticAlgorithm()
+        for generation in range(GENERATIONS):
+            population = genetic_algorithm.evolve(population)
+            best_schedule: Schedule = max(
+                population.get_schedules(), key=lambda s: s.get_fitness()
+            )
+            if best_schedule.get_fitness() == 1.0:
+                break
+
+        st.header(body="Generated Timetable")
+        for panel in data.get_panels():
+            st.subheader(f"Panel: {panel.get_name()}")
+            panel_schedules: list[Schedule] = [
+                s for s in population.get_schedules() if s.panel == panel
+            ]
+            if panel_schedules:
+                best_panel_schedule: Schedule = max(
+                    panel_schedules, key=lambda s: s.get_fitness()
+                )
+                tabulate_schedule(schedule=best_panel_schedule)
+            else:
+                st.write(f"No schedule generated for panel {panel.get_name()}.")
 
 
 if __name__ == "__main__":

@@ -1,11 +1,12 @@
-from schedule import Schedule
-from prettytable import PrettyTable
 import streamlit as st
+from prettytable import PrettyTable
+
+from schedule import Schedule
 
 
 def tabulate_schedule(schedule: Schedule) -> None:
     table: PrettyTable = PrettyTable(
-        [
+        field_names=[
             "Panel",
             "Batch",
             "Department",
@@ -17,7 +18,7 @@ def tabulate_schedule(schedule: Schedule) -> None:
     )
     for cls in schedule.get_classes():
         table.add_row(
-            [
+            row=[
                 cls["panel"],
                 cls["batch"],
                 cls["department"],
@@ -27,4 +28,4 @@ def tabulate_schedule(schedule: Schedule) -> None:
                 cls["class_time"],
             ]
         )
-    st.text(table)
+    st.text(body=table)
