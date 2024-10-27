@@ -6,22 +6,15 @@ This project implements a genetic algorithm to generate optimized timetables for
 
 ## Features
 
-
 - Input university data including rooms, professors, courses, departments, and panels
-
 - Generate optimized timetables using a genetic algorithm
-
 - Handle both lectures and lab sessions
-
 - Account for multiple batches within panels
-
 - Avoid scheduling conflicts for rooms, professors, and batches
-
+- Checks for conflicts regarding professor availability
 - Display generated timetables in an easy-to-read format
 
-
 ## Installation
-
 
 1. Clone this repository: 
     ```
@@ -40,6 +33,7 @@ This project implements a genetic algorithm to generate optimized timetables for
    - Add panels and specify the number of batches
 4. Click the "Generate Timetable" button to create optimized schedules
 5. View the generated timetables for each panel
+6. This is the sample output ![timetable](.\doc\crude_approach.png)
 
 ## Project Structure
 - `app.py`: Main Streamlit Application
@@ -52,13 +46,9 @@ This project implements a genetic algorithm to generate optimized timetables for
 ## Customization
 You can adjust the genetic algorithm parameters in `constants.py` to fine-tune the optimization process:
 - `POPULATION_SIZE`: Number of schedules in each generation
-
 - `NUMB_OF_ELITE_SCHEDULES`: Number of top schedules to carry over to the next generation
-
 - `TOURNAMENT_SELECTION_SIZE`: Number of schedules to consider in tournament selection
-
 - `MUTATION_RATE`: Probability of mutation for each schedule
-
 - `GENERATIONS`: Maximum number of generations to run the algorithm
 
 

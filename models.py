@@ -1,26 +1,6 @@
 from datetime import timedelta
 
 
-class Professor:
-    def __init__(self, professor_id: str, name: str) -> None:
-        self._id: str = professor_id
-        self._name: str = name
-
-    def get_id(self) -> str:
-        return self._id
-
-    def get_name(self) -> str:
-        return self._name
-
-
-class Room:
-    def __init__(self, number: str) -> None:
-        self._number: str = number
-
-    def get_number(self) -> str:
-        return self._number
-
-
 class ClassTime:
     def __init__(self, class_id: str, day: str, time: str, duration: timedelta) -> None:
         self._id: str = class_id
@@ -28,17 +8,62 @@ class ClassTime:
         self._time: str = time
         self._duration: timedelta = duration
 
-    def get_id(self) -> str:
+    def __str__(self) -> str:
+        return f"ClassTime(id='{self._id}', day='{self._day}', time='{self._time}', duration='{self._duration}')"
+
+    @property
+    def class_id(self) -> str:
         return self._id
 
-    def get_day(self) -> str:
+    @property
+    def day(self) -> str:
         return self._day
 
-    def get_time(self) -> str:
+    @property
+    def time(self) -> str:
         return self._time
 
-    def get_duration(self) -> timedelta:
+    @property
+    def duration(self) -> timedelta:
         return self._duration
+
+
+class Professor:
+    def __init__(self, professor_id: str, name: str) -> None:
+        self._id: str = professor_id
+        self._name: str = name
+        self._available_times: list[ClassTime] = []
+
+    def __str__(self) -> str:
+        return f'Professor(id="{self._id}", name="{self._name}", available_times={self._available_times})'
+
+    @property
+    def prof_id(self) -> str:
+        return self._id
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def available_times(self) -> list[ClassTime]:
+        return self._available_times
+
+    @available_times.setter
+    def available_times(self, slots: list[ClassTime]) -> None:
+        self._available_times = slots
+
+
+class Room:
+    def __init__(self, room_number: str) -> None:
+        self._number: str = room_number
+
+    def __str__(self) -> str:
+        return f'Room(number="{self._number}")'
+
+    @property
+    def number(self) -> str:
+        return self._number
 
 
 class Course:
@@ -56,19 +81,24 @@ class Course:
         self._lectures_per_week: int = lectures_per_week
         self._labs_per_week: int = labs_per_week
 
-    def get_number(self) -> str:
+    @property
+    def course_number(self) -> str:
         return self._number
 
-    def get_name(self) -> str:
+    @property
+    def name(self) -> str:
         return self._name
 
-    def get_professors(self) -> list[Professor]:
+    @property
+    def professors(self) -> list[Professor]:
         return self._professors
 
-    def get_lectures_per_week(self) -> int:
+    @property
+    def lectures_per_week(self) -> int:
         return self._lectures_per_week
 
-    def get_labs_per_week(self) -> int:
+    @property
+    def labs_per_week(self) -> int:
         return self._labs_per_week
 
 
@@ -77,10 +107,15 @@ class Department:
         self._name: str = name
         self._courses: list[Course] = courses
 
-    def get_name(self) -> str:
+    def __str__(self) -> str:
+        return f'Dept(name="{self._name}", courses="{self._courses}")'
+
+    @property
+    def name(self) -> str:
         return self._name
 
-    def get_courses(self) -> list[Course]:
+    @property
+    def courses(self) -> list[Course]:
         return self._courses
 
 
@@ -89,8 +124,13 @@ class Panel:
         self._name: str = name
         self._num_batches: int = num_batches
 
-    def get_name(self) -> str:
+    def __str__(self) -> str:
+        return f'Panel(name="{self._name}", num_batches="{self._num_batches}")'
+
+    @property
+    def name(self) -> str:
         return self._name
 
-    def get_num_batches(self) -> int:
+    @property
+    def num_batches(self) -> int:
         return self._num_batches

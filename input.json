@@ -1,0 +1,19 @@
+{
+  "professors": [
+    { "name": "Tejaswini Thaokar" },
+    { "name": "Vaishali Joshi" },
+    { "name": "Vaishali Sayankar" },
+    { "name": "Nikhil Mhala" },
+    { "name": "Sarika Bobde" },
+    { "name": "Nikhil Somninde" },
+    { "name": "Vrushali Kulkarni" },
+    { "name": "Shamla Mantri" },
+    { "name": "Aditi Jahagirdar" },
+    { "name": "Trupti Baraskar" },
+    { "name": "Shilpa Paygude" },
+    { "name": "Poonam Bhosale" },
+    { "name": "Vitthal Gutte" },
+    { "name": "Sameer Pokharkar" },
+    { "name": "Sameer Takarkar" }
+  ]
+}

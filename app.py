@@ -1,5 +1,4 @@
 import streamlit as st
-
 from constants import GENERATIONS, POPULATION_SIZE
 from data import tabulate_schedule
 from genetic_alg import GeneticAlgorithm, Population
@@ -20,7 +19,7 @@ def main() -> None:
         room_number: str = st.text_input(
             f"Room {i + 1} Number:", key=f"room_number_{i}"
         )
-        data.add_room(Room(number=room_number))
+        data.add_room(Room(room_number=room_number))
 
     lab_room_count: int = st.number_input(
         label="Number of Lab Rooms:",
@@ -34,7 +33,7 @@ def main() -> None:
         lab_room_number: str = st.text_input(
             label=f"Lab Room {i + 1} Number:", key=f"lab_room_number_{i}"
         )
-        data.add_lab_room(Room(number=lab_room_number))
+        data.add_lab_room(Room(room_number=lab_room_number))
 
     data.generate_class_times()
 
@@ -90,9 +89,7 @@ def main() -> None:
                 value=1,
                 key=f"course_labs_{i}_{j}",
             )
-            professor_options: list[str] = [
-                prof.get_name() for prof in data.get_professors()
-            ]
+            professor_options: list[str] = [prof.name for prof in data.professors]
             selected_professors: list[str] = st.multiselect(
                 label=f"Professors for {course_name}:",
                 options=professor_options,
@@ -100,9 +97,7 @@ def main() -> None:
             )
 
             professors: list[Professor] = [
-                prof
-                for prof in data.get_professors()
-                if prof.get_name() in selected_professors
+                prof for prof in data.professors if prof.name in selected_professors
             ]
 
             courses.append(
@@ -140,25 +135,23 @@ def main() -> None:
         genetic_algorithm: GeneticAlgorithm = GeneticAlgorithm()
         for generation in range(GENERATIONS):
             population = genetic_algorithm.evolve(population)
-            best_schedule: Schedule = max(
-                population.get_schedules(), key=lambda s: s.get_fitness()
-            )
-            if best_schedule.get_fitness() == 1.0:
+            best_schedule: Schedule = max(population.schedules, key=lambda s: s.fitness)
+            if best_schedule.fitness == 1.0:
                 break
 
         st.header(body="Generated Timetable")
-        for panel in data.get_panels():
-            st.subheader(f"Panel: {panel.get_name()}")
+        for panel in data.panels:
+            st.subheader(f"Panel: {panel.name}")
             panel_schedules: list[Schedule] = [
-                s for s in population.get_schedules() if s.panel == panel
+                s for s in population.schedules if s.panel == panel
             ]
             if panel_schedules:
                 best_panel_schedule: Schedule = max(
-                    panel_schedules, key=lambda s: s.get_fitness()
+                    panel_schedules, key=lambda s: s.fitness
                 )
                 tabulate_schedule(schedule=best_panel_schedule)
             else:
-                st.write(f"No schedule generated for panel {panel.get_name()}.")
+                st.write(f"No schedule generated for panel {panel.name}.")
 
 
 if __name__ == "__main__":
