@@ -33,7 +33,7 @@ This project implements a genetic algorithm to generate optimized timetables for
    - Add panels and specify the number of batches
 4. Click the "Generate Timetable" button to create optimized schedules
 5. View the generated timetables for each panel
-6. This is the sample output ![timetable](.\doc\crude_approach.png)
+6. This is the sample output ![timetable](doc/crude_approach.png)
 
 ## Project Structure
 - `app.py`: Main Streamlit Application
