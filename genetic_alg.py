@@ -12,11 +12,18 @@ from schedule import Data, Schedule
 
 
 class Population:
+    """
+    Represents a population of schedules for a genetic algorithm.
+    
+    The `Population` class is responsible for initializing and managing a collection of `Schedule` objects, which represent potential solutions to a scheduling problem. The population is initialized with a specified size, and each schedule is created with a randomly assigned division from the provided `Data` object.
+    
+    The `schedules` property provides access to the list of schedules in the population.
+    """
     def __init__(self, size: int, data: Data) -> None:
         self._schedules: list[Schedule] = []
         for _ in range(size):
-            for panel in data.panels:
-                self._schedules.append(Schedule(data=data, panel=panel).initialize())
+            for division in data.divisions:
+                self._schedules.append(Schedule(data=data, division=division).generate_schedule())
 
     @property
     def schedules(self) -> list[Schedule]:
@@ -24,11 +31,25 @@ class Population:
 
 
 class GeneticAlgorithm:
+    """
+    Implements the core functionality of the genetic algorithm for scheduling.
+    
+    The `GeneticAlgorithm` class provides static methods for performing the key operations of the genetic algorithm, including:
+    
+    - `_crossover_schedule`: Performs crossover between two schedules to create a new schedule.
+    - `_mutate_schedule`: Mutates a given schedule by randomly changing the class times and rooms.
+    - `_select_tournament_population`: Selects a tournament population from the overall population.
+    - `_crossover_population`: Performs crossover on the population to create a new generation.
+    - `_mutate_population`: Mutates the population to introduce diversity.
+    - `evolve`: Evolves the population by performing crossover and mutation.
+    
+    These methods are used by the main `Population` class to manage the overall population of schedules and evolve them over generations to find an optimal solution.
+    """
     @staticmethod
     def _crossover_schedule(schedule1: Schedule, schedule2: Schedule) -> Schedule:
         crossover_schedule: Schedule = Schedule(
-            data=schedule1.data, panel=schedule1.panel
-        ).initialize()
+            data=schedule1.data, division=schedule1.division
+        ).generate_schedule()
 
         min_len: int = min(
             len(schedule1.classes),

@@ -36,7 +36,7 @@ def tabulate_schedule(schedule: Schedule) -> None:
     for cls in schedule.classes:
         table.add_row(
             row=[
-                cls.panel,
+                cls.division,
                 cls.batch,
                 cls.department,
                 cls.course,
@@ -45,4 +45,5 @@ def tabulate_schedule(schedule: Schedule) -> None:
                 cls.class_time,
             ]
         )
-    st.text(body=table)
+    # st.text(body=table)
+    print(table)
