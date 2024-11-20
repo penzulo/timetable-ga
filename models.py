@@ -1,191 +1,123 @@
+from dataclasses import dataclass, field
 from datetime import timedelta
-from dataclasses import dataclass
+from secrets import choice
+from string import ascii_uppercase, digits
+from typing import List, Optional, Set
 
 
-class ClassTime:
-    """
-    Represents a specific class time, including the class ID, day, time, and duration.
-    
-    Attributes:
-        class_id (str): The unique identifier for the class.
-        day (str): The day of the week the class is held.
-        time (str): The time of day the class is held.
-        duration (timedelta): The duration of the class.
-    """
-    def __init__(self, class_id: str, day: str, time: str, duration: timedelta) -> None:
-        self._id: str = class_id
-        self._day: str = day
-        self._time: str = time
-        self._duration: timedelta = duration
+def generate_id(n: int) -> str:
+    return "".join(choice(ascii_uppercase + digits) for _ in range(n))
 
-    def __repr__(self) -> str:
-        return f"ClassTime(id='{self._id}', day='{self._day}', time='{self._time}', duration='{self._duration}')"
 
-    @property
-    def class_id(self) -> str:
-        return self._id
-
-    @property
-    def day(self) -> str:
-        return self._day
-
-    @property
-    def time(self) -> str:
-        return self._time
-
-    @property
-    def duration(self) -> timedelta:
-        return self._duration
+@dataclass(repr=True, frozen=True)
+class TimeSlot:
+    slot_id: str
+    day: str
+    start: str
+    end: str
+    duration: timedelta
 
 
 @dataclass(repr=True)
-class Subject:
-    subject_id: str
-    name: str
-    have_labs: bool
-
 class Professor:
-    def __init__(self, professor_id: str, name: str, subject: Subject) -> None:
-        self._id: str = professor_id
-        self._name: str = name
-        self._subject: Subject = subject
-        self._booked_times: list[ClassTime] = []
+    name: str
+    professor_id: Optional[str] = field(default=None)
+    courses: List["Course"] = field(default_factory=list)
+    _reserved_slots: Set[TimeSlot] = field(default_factory=set)
 
-    def __repr__(self) -> str:
-        return f'Professor(id="{self._id}", name="Dr. {self._name}", subject={self._subject})'
+    def __post_init__(self) -> None:
+        self.professor_id = generate_id(n=4)
 
-    @property
-    def prof_id(self) -> str:
-        return self._id
+    def is_reserved(self, time_slot: TimeSlot) -> bool:
+        return time_slot in self._reserved_slots
 
-    @property
-    def name(self) -> str:
-        return self._name
-    
-    @property
-    def subject(self) -> Subject:
-        return self._subject
+    def reserve_professor(self, time_slot: TimeSlot) -> None:
+        if self.is_reserved(time_slot):
+            raise ValueError(f"Dr. {self.name} is already booked at {time_slot}")
+        self._reserved_slots.add(time_slot)
 
-    @property
-    def booked_times(self) -> list[ClassTime]:
-        return self._booked_times
+    def assign_course(self, course: "Course", lab: bool = False) -> None:
+        if lab:
+            if course.lab_professor is None or course.lab_professor == self:
+                self.courses.append(course)
+                course.lab_professor = self
+                return
+            raise ValueError(
+                f"Lab Session{course.title} is already assigned to Dr. {course.lab_professor.name}"
+            )
 
-    def book_professor(self, class_time: ClassTime):
-        self._booked_times.append(class_time)
+        if course.assigned_professor is None or course.assigned_professor == self:
+            self.courses.append(course)
+            course.assigned_professor = self
+            return
+        raise ValueError(
+            f"Course {course.title} is already assigned to Dr. {course.assigned_professor.name}"
+        )
 
-    def is_booked(self, class_time: ClassTime):
-        return class_time in self._booked_times
 
+@dataclass(repr=True)
 class Room:
-    def __init__(self, room_number: str) -> None:
-        self._number: str = room_number
-        self._booked_times: list[ClassTime] = []
+    number: str
+    _reserved_slots: Set[TimeSlot] = field(default_factory=set)
 
-    def __repr__(self) -> str:
-        return f'Room(number="{self._number}", booked_times={self._booked_times})'
+    def is_reserved(self, time_slot: TimeSlot) -> bool:
+        return time_slot in self._reserved_slots
 
-    @property
-    def number(self) -> str:
-        return self._number
+    def reserve_room(self, time_slot: TimeSlot) -> None:
+        if self.is_reserved(time_slot):
+            raise ValueError(f"Room {self.number} is already booked at {time_slot}")
+        self._reserved_slots.add(time_slot)
 
-    @property
-    def booked_times(self) -> list[ClassTime]:
-        return self._booked_times
 
-    def book_room(self, class_time: ClassTime) -> None:
-        self._booked_times.append(class_time)
-
-    def is_booked(self, class_time: ClassTime):
-        return class_time in self.booked_times
-
+@dataclass(repr=True)
 class Course:
-    def __init__(
-        self,
-        number: str,
-        name: str,
-        subjects: list[Subject],
-        professors: list[Professor],
-        lectures_per_week: int,
-        labs_per_week: int = 0,
-    ) -> None:
-        self._number: str = number
-        self._name: str = name
-        self._subjects: list[Subject] = subjects
-        self._professors: list[Professor] = professors
-        self._lectures_per_week: int = lectures_per_week
-        self._labs_per_week: int = labs_per_week
+    title: str
+    weekly_lectures: int
+    code: Optional[str] = field(default=None)
+    weekly_labs: int = 0
+    assigned_professor: Optional[Professor] = field(default=None)
+    lab_professor: Optional[Professor] = field(default=None)
 
-    @property
-    def course_number(self) -> str:
-        return self._number
+    def __post_init__(self) -> None:
+        self.code = generate_id(8)
 
-    @property
-    def name(self) -> str:
-        return self._name
+    def assign_professor(self, professor: Professor) -> None:
+        if self.assigned_professor is not None and self.assigned_professor != professor:
+            raise ValueError(
+                f"Course {self.title} is already assigned to Dr. {self.assigned_professor.name}."
+            )
+        self.assigned_professor = professor
+        if self not in professor.courses:
+            professor.assign_course(self)
 
-    @property
-    def professors(self) -> list[Professor]:
-        return self._professors
-
-    @property
-    def subjects(self) -> list[Subject]:
-        return self._subjects
-
-    @property
-    def lectures_per_week(self) -> int:
-        return self._lectures_per_week
-
-    @property
-    def labs_per_week(self) -> int:
-        return self._labs_per_week
-
-    def is_subject_in_course(self, subject: Subject):
-        return subject in self._subjects
+    def assign_lab_professor(self, professor: Professor) -> None:
+        if self.lab_professor is not None and self.lab_professor != professor:
+            raise ValueError(
+                f"Lab sessions of '{self.title}' are already assigned to Dr. {self.lab_professor.name}. Trying to assign to {professor.name}"
+            )
+        self.lab_professor = professor
+        if self not in professor.courses:
+            professor.assign_course(self, lab=True)
 
 
+@dataclass(repr=True)
 class Department:
-    """
-    Represents a department within an educational institution, containing a collection of courses.
-    
-    Properties:
-        name (str): The name of the department.
-        courses (list[Course]): The list of courses offered by the department.
-    """
-    def __init__(self, name: str, courses: list[Course]):
-        self._name: str = name
-        self._courses: list[Course] = courses
-
-    def __repr__(self) -> str:
-        return f'Dept(name="{self._name}", courses="{self._courses}")'
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-    @property
-    def courses(self) -> list[Course]:
-        return self._courses
+    department_name: str
+    offered_courses: List[Course] = field(default_factory=list)
 
 
+@dataclass(repr=True, frozen=True)
 class Division:
-    """
-    Represents a division with a name and a number of batches.
-    
-    Properties:
-        name (str): The name of the division.
-        num_batches (int): The number of batches in the division.
-    """
-    def __init__(self, name: str, num_batches: int):
-        self._name: str = name
-        self._num_batches: int = num_batches
+    name: str
+    num_batches: int
 
-    def __repr__(self) -> str:
-        return f'Division(name="{self._name}", num_batches="{self._num_batches}")'
 
-    @property
-    def name(self) -> str:
-        return self._name
-
-    @property
-    def num_batches(self) -> int:
-        return self._num_batches
+@dataclass(repr=True)
+class ScheduledClass:
+    division: Division
+    batch: str
+    department: Department
+    course: Course
+    room: Room
+    professor: Professor
+    time_slot: TimeSlot

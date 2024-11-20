@@ -1,157 +1,92 @@
-import streamlit as st
-from constants import GENERATIONS, POPULATION_SIZE
-from data import tabulate_schedule
-from genetic_alg import GeneticAlgorithm, Population
-from models import Course, Department, Panel, Professor, Room
-from schedule import Data, Schedule
+from json import load
+from typing import List
+
+from constants import (CROSSOVER_RATE, GENERATIONS, MUTATION_RATE,
+                       POPULATION_SIZE)
+from data import sort_and_display
+from genetic_alg import EvolutionManager, Population
+from models import Course, Department, Division, Professor, Room
+from schedule import ScheduleOptimizer
+
+
+def load_data() -> ScheduleOptimizer:
+    with open("input.json", "r") as f:
+        data = load(f)
+
+    rooms = [Room(room["room_number"]) for room in data["rooms"]]
+    lab_rooms = [Room(room["room_number"]) for room in data["lab_rooms"]]
+    professors = [Professor(name=prof["name"]) for prof in data["professors"]]
+
+    departments: List[Department] = []
+    for dept in data["departments"]:
+        department = Department(dept["department_name"])
+        department.offered_courses = [
+            Course(
+                title=course["title"],
+                weekly_lectures=course["weekly_lectures"],
+                weekly_labs=course["weekly_labs"],
+            )
+            for course in dept["offered_courses"]
+        ]
+        departments.append(department)
+
+    prof_index = 0
+    lab_prof_index = len(professors) // 2
+
+    for dept in departments:
+        for course in dept.offered_courses:
+            course.assign_professor(professors[prof_index])
+            prof_index = (prof_index + 1) % len(professors)
+
+            if course.weekly_labs > 0:
+                course.assign_lab_professor(professors[lab_prof_index])
+                lab_prof_index = (lab_prof_index + 1) % len(professors)
+
+    divisions: List[Division] = [
+        Division(name=div["name"], num_batches=div["num_batches"])
+        for div in data["divisions"]
+    ]
+
+    default_schedule = ScheduleOptimizer()
+    for room in rooms:
+        default_schedule.register_room(room)
+
+    for lab_room in lab_rooms:
+        default_schedule.register_lab_room(lab_room)
+
+    for department in departments:
+        default_schedule.register_department(department)
+
+    for division in divisions:
+        default_schedule.register_division(division)
+
+    default_schedule.populate_time_slots()
+    return default_schedule
 
 
 def main() -> None:
-    st.title("University Timetable Scheduling")
-    st.header("Input Data")
+    def schedule_factory():
+        return load_data()
 
-    data: Data = Data()
-
-    room_count: int = st.number_input(
-        label="Number of Rooms:", min_value=1, max_value=20, value=5, key="room_count"
+    initial_population = Population(
+        size=POPULATION_SIZE, schedule_factory=schedule_factory
     )
-    for i in range(room_count):
-        room_number: str = st.text_input(
-            f"Room {i + 1} Number:", key=f"room_number_{i}"
-        )
-        data.add_room(Room(room_number=room_number))
-
-    lab_room_count: int = st.number_input(
-        label="Number of Lab Rooms:",
-        min_value=1,
-        max_value=20,
-        value=5,
-        key="lab_room_count",
+    evolution_manager = EvolutionManager(
+        mutation_rate=MUTATION_RATE, crossover_rate=CROSSOVER_RATE
     )
 
-    for i in range(lab_room_count):
-        lab_room_number: str = st.text_input(
-            label=f"Lab Room {i + 1} Number:", key=f"lab_room_number_{i}"
+    current_population = initial_population
+    for generation in range(1, GENERATIONS + 1):
+        print(
+            f"Generation {generation} - Best Fitness: {current_population.get_best_schedule().calculate_fitness()}"
         )
-        data.add_lab_room(Room(room_number=lab_room_number))
-
-    data.generate_class_times()
-
-    professor_count: int = st.number_input(
-        label="Number of Professors:",
-        min_value=1,
-        max_value=50,
-        value=10,
-        key="professor_count",
-    )
-
-    for i in range(professor_count):
-        professor_name: str = st.text_input(
-            f"Professor {i + 1} Name:", key=f"professor_name_{i}"
+        current_population = evolution_manager.evolve(
+            current_population, schedule_factory
         )
-        data.add_professor(Professor(professor_id=f"I{i + 1}", name=professor_name))
 
-    dept_count: int = st.number_input(
-        label="Number of Departments:",
-        min_value=1,
-        max_value=5,
-        value=2,
-        key="dept_count",
-    )
-
-    for i in range(dept_count):
-        dept_name: str = st.text_input(
-            f"Department {i + 1} Name:", key=f"dept_name_{i}"
-        )
-        course_count: int = st.number_input(
-            label=f"Number of Courses in {dept_name}:",
-            min_value=1,
-            max_value=20,
-            value=3,
-            key=f"course_count_{i}",
-        )
-        courses: list[Course] = []
-        for j in range(course_count):
-            course_name: str = st.text_input(
-                label=f"Course {j + 1} Name in {dept_name}:", key=f"course_name_{i}_{j}"
-            )
-            course_lectures: int = st.number_input(
-                label=f"Number of Lectures per Week for {course_name}:",
-                min_value=1,
-                max_value=10,
-                value=3,
-                key=f"course_lectures_{i}_{j}",
-            )
-            course_labs: int = st.number_input(
-                label=f"Number of Labs per Week for {course_name}:",
-                min_value=0,
-                max_value=5,
-                value=1,
-                key=f"course_labs_{i}_{j}",
-            )
-            professor_options: list[str] = [prof.name for prof in data.professors]
-            selected_professors: list[str] = st.multiselect(
-                label=f"Professors for {course_name}:",
-                options=professor_options,
-                key=f"professors_{i}_{j}",
-            )
-
-            professors: list[Professor] = [
-                prof for prof in data.professors if prof.name in selected_professors
-            ]
-
-            courses.append(
-                Course(
-                    number=f"C{j + 1}",
-                    name=course_name,
-                    professors=professors,
-                    lectures_per_week=course_lectures,
-                    labs_per_week=course_labs,
-                )
-            )
-        data.add_dept(Department(name=dept_name, courses=courses))
-
-    panel_count: int = st.number_input(
-        label="Number of Panels:",
-        min_value=1,
-        max_value=15,
-        value=2,
-        key="panel_count",
-    )
-
-    for i in range(panel_count):
-        panel_name: str = st.text_input(f"Panel {i + 1} Name:", key=f"panel_name_{i}")
-        num_batches: int = st.number_input(
-            label=f"Number of Batches in {panel_name}:",
-            min_value=1,
-            max_value=10,
-            value=2,
-            key=f"num_batches_{i}",
-        )
-        data.add_panel(Panel(name=panel_name, num_batches=num_batches))
-
-    if st.button(label="Generate Timetable"):
-        population: Population = Population(size=POPULATION_SIZE, data=data)
-        genetic_algorithm: GeneticAlgorithm = GeneticAlgorithm()
-        for generation in range(GENERATIONS):
-            population = genetic_algorithm.evolve(population)
-            best_schedule: Schedule = max(population.schedules, key=lambda s: s.fitness)
-            if best_schedule.fitness == 1.0:
-                break
-
-        st.header(body="Generated Timetable")
-        for panel in data.panels:
-            st.subheader(f"Panel: {panel.name}")
-            panel_schedules: list[Schedule] = [
-                s for s in population.schedules if s.panel == panel
-            ]
-            if panel_schedules:
-                best_panel_schedule: Schedule = max(
-                    panel_schedules, key=lambda s: s.fitness
-                )
-                tabulate_schedule(schedule=best_panel_schedule)
-            else:
-                st.write(f"No schedule generated for panel {panel.name}.")
+    best_schedule = current_population.get_best_schedule()
+    print(f"Best Schedule Found!")
+    sort_and_display(best_schedule)
 
 
 if __name__ == "__main__":

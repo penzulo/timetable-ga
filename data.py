@@ -1,49 +1,52 @@
-import streamlit as st
 from prettytable import PrettyTable
-from schedule import ClassTimeInfo, Schedule
+
+from schedule import ScheduleOptimizer
+
+# Define the custom weekday order
+weekday_order = {"Monday": 0, "Tuesday": 1, "Wednesday": 2, "Thursday": 3, "Friday": 4}
 
 
-# Function to extract day and time for sorting
-def sort_key(item: ClassTimeInfo) -> tuple[int, int, int, str]:
-    # Define the actual order of days
-    day_order: dict[str, int] = {
-        "Monday": 0,
-        "Tuesday": 1,
-        "Wednesday": 2,
-        "Thursday": 3,
-        "Friday": 4,
-        "Saturday": 5,
-        "Sunday": 6,
-    }
-    day, time, duration = item.class_time.split(" ")
-    hours, minutes = map(int, time.split(":"))
-    return day_order[day], hours, minutes, duration
-
-
-def tabulate_schedule(schedule: Schedule) -> None:
-    table: PrettyTable = PrettyTable(
-        field_names=[
-            "Panel",
-            "Batch",
-            "Department",
-            "Course",
-            "Room",
-            "Professor",
-            "Class Time",
-        ]
+def sort_and_display(schedule: ScheduleOptimizer):
+    # Step 1: Sort by weekday order, start time, and end time
+    sorted_schedule = sorted(
+        schedule.raw_schedule,
+        key=lambda x: (
+            x.department.department_name,  # Group by department
+            x.division.name,  # Group by division
+            x.course.title,  # Group by course
+            weekday_order[x.time_slot.day],  # Sort by custom weekday order
+            x.time_slot.start,  # Sort by start time
+            x.time_slot.end,  # Sort by end time
+        ),
     )
-    schedule.classes.sort(key=sort_key)
-    for cls in schedule.classes:
+
+    # Step 2: Create and display the PrettyTable
+    table = PrettyTable()
+    table.field_names = [
+        "Day",
+        "Start Time",
+        "End Time",
+        "Course Title",
+        "Professor",
+        "Room",
+        "Division",
+        "Batch",
+        "Department",
+    ]
+
+    for entry in sorted_schedule:
         table.add_row(
-            row=[
-                cls.division,
-                cls.batch,
-                cls.department,
-                cls.course,
-                cls.room,
-                cls.professor,
-                cls.class_time,
+            [
+                entry.time_slot.day,
+                entry.time_slot.start,
+                entry.time_slot.end,
+                entry.course.title,
+                f"Dr. {entry.professor.name}",
+                entry.room.number,
+                entry.division.name,
+                entry.batch,
+                entry.department.department_name,
             ]
         )
-    # st.text(body=table)
+
     print(table)

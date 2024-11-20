@@ -3,7 +3,8 @@ from datetime import datetime, timedelta
 POPULATION_SIZE: int = 50
 NUMB_OF_ELITE_SCHEDULES: int = 1
 TOURNAMENT_SELECTION_SIZE: int = 1
-MUTATION_RATE: float = 0.1
+MUTATION_RATE: float = 0.01
+CROSSOVER_RATE: float = 0.75
 GENERATIONS: int = 2000
 UNIVERSITY_START_TIME: datetime = datetime.strptime("08:30", "%H:%M")
 UNIVERSITY_END_TIME: datetime = datetime.strptime("16:45", "%H:%M")

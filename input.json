@@ -1,4 +1,23 @@
 {
+  "rooms": [
+    { "room_number": "R101" },
+    { "room_number": "R102" },
+    { "room_number": "R103" },
+    { "room_number": "R104" },
+    { "room_number": "R105" },
+    { "room_number": "R106" },
+    { "room_number": "R107" },
+    { "room_number": "R108" },
+    { "room_number": "R109" },
+    { "room_number": "R1010" }
+  ],
+  "lab_rooms": [
+    { "room_number": "L101" },
+    { "room_number": "L102" },
+    { "room_number": "L103" },
+    { "room_number": "L104" },
+    { "room_number": "L105" }
+  ],
   "professors": [
     { "name": "Tejaswini Thaokar" },
     { "name": "Vaishali Joshi" },
@@ -15,5 +34,85 @@
     { "name": "Vitthal Gutte" },
     { "name": "Sameer Pokharkar" },
     { "name": "Sameer Takarkar" }
+  ],
+  "departments": [
+    {
+      "department_name": "Computer Science",
+      "offered_courses": [
+        {
+          "title": "Foundations of Peace",
+          "weekly_lectures": 2,
+          "weekly_labs": 0
+        },
+        {
+          "title": "Data Structures and Algorithms",
+          "weekly_lectures": 3,
+          "weekly_labs": 1
+        },
+        {
+          "title": "Computer Networks",
+          "weekly_lectures": 3,
+          "weekly_labs": 0
+        },
+        {
+          "title": "Operating Systems",
+          "weekly_lectures": 3,
+          "weekly_labs": 0
+        },
+        {
+          "title": "Python Programming",
+          "weekly_lectures": 3,
+          "weekly_labs": 1
+        }
+      ]
+    },
+    {
+      "department_name": "Electronics Engineering",
+      "offered_courses": [
+        {
+          "title": "Foundations of Peace",
+          "weekly_lectures": 2,
+          "weekly_labs": 0
+        },
+        {
+          "title": "Analog Electronics",
+          "weekly_lectures": 3,
+          "weekly_labs": 1
+        },
+        {
+          "title": "Digital Electronics",
+          "weekly_lectures": 3,
+          "weekly_labs": 1
+        },
+        {
+          "title": "Microprocessors and Microcontrollers",
+          "weekly_lectures": 3,
+          "weekly_labs": 1
+        },
+        {
+          "title": "Communication Systems",
+          "weekly_lectures": 3,
+          "weekly_labs": 1
+        }
+      ]
+    }
+  ],
+  "divisions": [
+    {
+      "name": "A",
+      "num_batches": 2
+    },
+    {
+      "name": "B",
+      "num_batches": 2
+    },
+    {
+      "name": "C",
+      "num_batches": 2
+    },
+    {
+      "name": "D",
+      "num_batches": 2
+    }
   ]
 }

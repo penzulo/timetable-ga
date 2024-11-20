@@ -1,145 +1,180 @@
-from random import choice, random, randrange
-from typing import Optional
+from random import choice, random, sample
+from typing import Callable, List
 
-from constants import (
-    MUTATION_RATE,
-    NUMB_OF_ELITE_SCHEDULES,
-    POPULATION_SIZE,
-    TOURNAMENT_SELECTION_SIZE,
-)
-from models import ClassTime, Professor, Room
-from schedule import Data, Schedule
+from models import ScheduledClass, TimeSlot
+from schedule import ScheduleOptimizer
 
 
 class Population:
-    """
-    Represents a population of schedules for a genetic algorithm.
-    
-    The `Population` class is responsible for initializing and managing a collection of `Schedule` objects, which represent potential solutions to a scheduling problem. The population is initialized with a specified size, and each schedule is created with a randomly assigned division from the provided `Data` object.
-    
-    The `schedules` property provides access to the list of schedules in the population.
-    """
-    def __init__(self, size: int, data: Data) -> None:
-        self._schedules: list[Schedule] = []
-        for _ in range(size):
-            for division in data.divisions:
-                self._schedules.append(Schedule(data=data, division=division).generate_schedule())
+    def __init__(
+        self, size: int, schedule_factory: Callable[[], ScheduleOptimizer]
+    ) -> None:
+        if not size > 0:
+            raise ValueError("Expected a valid positive float for size.")
 
-    @property
-    def schedules(self) -> list[Schedule]:
-        return self._schedules
+        self.size: int = size
+        self.schedules: List[ScheduleOptimizer] = [
+            self._create_independant_schedule(schedule_factory) for _ in range(size)
+        ]
 
-
-class GeneticAlgorithm:
-    """
-    Implements the core functionality of the genetic algorithm for scheduling.
-    
-    The `GeneticAlgorithm` class provides static methods for performing the key operations of the genetic algorithm, including:
-    
-    - `_crossover_schedule`: Performs crossover between two schedules to create a new schedule.
-    - `_mutate_schedule`: Mutates a given schedule by randomly changing the class times and rooms.
-    - `_select_tournament_population`: Selects a tournament population from the overall population.
-    - `_crossover_population`: Performs crossover on the population to create a new generation.
-    - `_mutate_population`: Mutates the population to introduce diversity.
-    - `evolve`: Evolves the population by performing crossover and mutation.
-    
-    These methods are used by the main `Population` class to manage the overall population of schedules and evolve them over generations to find an optimal solution.
-    """
     @staticmethod
-    def _crossover_schedule(schedule1: Schedule, schedule2: Schedule) -> Schedule:
-        crossover_schedule: Schedule = Schedule(
-            data=schedule1.data, division=schedule1.division
-        ).generate_schedule()
+    def _create_independant_schedule(
+        schedule_factory: Callable[[], ScheduleOptimizer]
+    ) -> ScheduleOptimizer:
+        schedule = schedule_factory()
+        schedule.populate_time_slots()
+        schedule.create_schedule()
+        return schedule
 
-        min_len: int = min(
-            len(schedule1.classes),
-            len(schedule2.classes),
-            len(crossover_schedule.classes),
+    def evaulaute_fitness(self) -> None:
+        for schedule in self.schedules:
+            schedule.fitness = schedule.calculate_fitness()
+
+    def get_best_schedule(self) -> ScheduleOptimizer:
+        return max(self.schedules, key=lambda s: s.fitness)
+
+    def select_parents(self) -> List[ScheduleOptimizer]:
+        total_fitness: float = sum(schedule.fitness for schedule in self.schedules)
+        if total_fitness == 0:
+            return sample(
+                self.schedules, 2
+            )  # If all fitnesses are 0, we will select randomly
+
+        return [
+            self._roulette_selection(total_fitness),
+            self._roulette_selection(total_fitness),
+        ]
+
+    def _roulette_selection(self, total_fitness: float) -> ScheduleOptimizer:
+        pick: float = random() * total_fitness
+        current: float = 0
+        for schedule in self.schedules:
+            current += (
+                schedule.fitness
+                if schedule.fitness != 0
+                else schedule.calculate_fitness()
+            )
+            if current > pick:
+                return schedule
+
+        # In case of rounding errors, return the last one
+        return self.schedules[-1]
+
+
+class EvolutionManager:
+    """
+    Handles the evolutionary process for optimizing schedules using genetic algorithms.
+
+    Attributes:
+        _mutation_rate (float): The probability of mutation occurring during evolution.
+        _crossover_rate (float): The probability of crossover occurring during evolution.
+    """
+
+    def __init__(self, mutation_rate: float, crossover_rate: float) -> None:
+        """
+        Initializes the EvolutionManager with mutation and crossover rates.
+
+        Args:
+            mutation_rate (float): The probability of mutation (must be > 0.0).
+            crossover_rate (float): The probability of crossover (must be > 0.0).
+
+        Raises:
+            ValueError: If either mutation_rate or crossover_rate is not a positive float.
+        """
+        if not isinstance(mutation_rate, float) or not mutation_rate > 0.0:
+            raise ValueError(f"Expected a positive float mutation rate")
+
+        if not isinstance(crossover_rate, float) or not mutation_rate > 0.0:
+            raise ValueError(f"Expected a positive float crossover rate")
+
+        self._mutation_rate: float = mutation_rate
+        self._crossover_rate: float = crossover_rate
+
+    def mutate(self, schedule_optimizer: ScheduleOptimizer) -> None:
+        """
+        Applies mutation to a given schedule by modifying a random class's time slot.
+
+        Args:
+            schedule_optimizer (ScheduleOptimizer): The schedule to be mutated.
+
+        Side Effects:
+            Modifies the `time_slot` of a random class in the schedule if mutation occurs.
+        """
+        if random() < self._mutation_rate:
+            random_class: ScheduledClass = choice(schedule_optimizer.raw_schedule)
+            random_time_slot: TimeSlot = choice(list(schedule_optimizer.time_slots))
+
+            # if not schedule_optimizer.is_conflicting(
+            #     random_time_slot, random_class.room, random_class.professor
+            # ):
+            random_class.time_slot = random_time_slot
+
+    def crossover(
+        self,
+        parent_a: ScheduleOptimizer,
+        parent_b: ScheduleOptimizer,
+        schedule_factory: Callable[[], ScheduleOptimizer],
+    ) -> ScheduleOptimizer:
+        """
+        Creates an offspring schedule by combining the schedules of two parent schedules.
+
+        Args:
+            parent_a (ScheduleOptimizer): The first parent schedule.
+            parent_b (ScheduleOptimizer): The second parent schedule.
+            schedule_factory (Callable[[], ScheduleOptimizer]): A factory function for creating a new ScheduleOptimizer instance.
+
+        Returns:
+            ScheduleOptimizer: The offspring schedule created from the two parents.
+        """
+        if random() > self._crossover_rate:
+            # No crossover, return one parent
+            return choice([parent_a, parent_b])
+
+        offspring = schedule_factory()
+
+        offspring.raw_schedule = [
+            choice([class_a, class_b])
+            for class_a, class_b in zip(parent_a.raw_schedule, parent_b.raw_schedule)
+        ]
+
+        offspring.rooms = parent_a.rooms.copy()
+        offspring.lab_rooms = parent_a.lab_rooms.copy()
+        offspring.time_slots = parent_a.time_slots.copy()
+        offspring.departments = parent_a.departments.copy()
+        offspring.divisions = parent_a.divisions.copy()
+        offspring.fitness = offspring.calculate_fitness()
+        return offspring
+
+    def evolve(
+        self, population: Population, schedule_factory: Callable[[], ScheduleOptimizer]
+    ) -> Population:
+        """
+        Evolves a population to create the next generation of schedules.
+
+        The evolution process involves selecting the best schedule, performing crossover
+        and mutation, and forming a new population.
+
+        Args:
+            population (Population): The current population of schedules.
+            schedule_factory (Callable[[], ScheduleOptimizer]): A factory function for creating a new ScheduleOptimizer instance.
+
+        Returns:
+            Population: The next generation of schedules.
+        """
+        next_generation: List[ScheduleOptimizer] = [population.get_best_schedule()]
+
+        while len(next_generation) < len(population.schedules):
+            parent_a, parent_b = population.select_parents()
+            try:
+                offspring = self.crossover(parent_a, parent_b, schedule_factory)
+                self.mutate(offspring)
+                next_generation.append(offspring)
+            except (IndexError, ValueError):
+                continue  # Skips this offspring if mutation or crossover fails
+
+        new_population: Population = Population(
+            size=len(next_generation), schedule_factory=schedule_factory
         )
-
-        for i in range(min_len):
-            if random() > 0.5:
-                crossover_schedule.classes[i] = schedule1.classes[i]
-            else:
-                crossover_schedule.classes[i] = schedule2.classes[i]
-        return crossover_schedule
-
-    @staticmethod
-    def _mutate_schedule(mutate_schedule: Schedule) -> None:
-        try:
-            for cls in mutate_schedule.classes:
-                professor: Optional[Professor] = next(
-                    (
-                        prof
-                        for prof in mutate_schedule.data.professors
-                        if prof.name == cls.professor
-                    ),
-                    None,
-                )
-
-                if professor is None:
-                    print(
-                        f"[WARNING] No professor found with the name {cls.professor}. Skipping mutation for this class"
-                    )
-                    continue
-
-                if random() < MUTATION_RATE:
-                    class_duration: str = cls.class_time.split(" ")[2].strip("()")
-                    available_times: list[ClassTime] = [
-                        t
-                        for t in professor.available_times
-                        if t.duration == class_duration
-                    ]
-                    available_rooms: list[Room] = mutate_schedule.data.rooms.copy()
-
-                    if available_times:
-                        chosen: ClassTime = choice(available_times)
-                        cls.class_time = (
-                            f"{chosen.day} {chosen.time} ({chosen.duration})"
-                        )
-                    else:
-                        print(
-                            f"[WARNING] No available times matching duration for professor {professor.name}"
-                            f"Skippping time mutation for this class."
-                        )
-
-                    if available_rooms:
-                        cls.room = choice(available_rooms).number
-                    else:
-                        print(
-                            f"No available rooms to mutate. Skipping room mutation for this class."
-                        )
-        except Exception as err:
-            print(f"An error occurred during mutation: {err}")
-
-    @staticmethod
-    def _select_tournament_population(pop: Population) -> Population:
-        tournament_pop: Population = Population(size=0, data=pop.schedules[0].data)
-        for _ in range(TOURNAMENT_SELECTION_SIZE):
-            tournament_pop.schedules.append(
-                pop.schedules[randrange(start=0, stop=len(pop.schedules))]
-            )
-        tournament_pop.schedules.sort(key=lambda x: x.fitness, reverse=True)
-        return tournament_pop
-
-    def _crossover_population(self, pop: Population) -> Population:
-        crossover_pop: Population = Population(size=0, data=pop.schedules[0].data)
-        for i in range(NUMB_OF_ELITE_SCHEDULES):
-            crossover_pop.schedules.append(pop.schedules[i])
-        num: int = NUMB_OF_ELITE_SCHEDULES
-        while num < POPULATION_SIZE:
-            schedule1: Schedule = self._select_tournament_population(pop).schedules[0]
-            schedule2: Schedule = self._select_tournament_population(pop).schedules[0]
-            crossover_pop.schedules.append(
-                self._crossover_schedule(schedule1, schedule2)
-            )
-            num += 1
-        return crossover_pop
-
-    def _mutate_population(self, population: Population) -> Population:
-        for i in range(NUMB_OF_ELITE_SCHEDULES, POPULATION_SIZE):
-            self._mutate_schedule(population.schedules[i])
-        return population
-
-    def evolve(self, population: Population) -> Population:
-        return self._mutate_population(self._crossover_population(population))
+        new_population.schedules = next_generation
+        new_population.evaulaute_fitness()
+        return new_population
