@@ -1,3 +1,4 @@
+
 from dataclasses import dataclass, field
 from datetime import timedelta
 from secrets import choice
@@ -22,6 +23,8 @@ class TimeSlot:
 class Professor:
     name: str
     professor_id: Optional[str] = field(default=None)
+    available_start: Optional[str] = field(default=None)
+    available_end: Optional[str] = field(default=None)
     courses: List["Course"] = field(default_factory=list)
     _reserved_slots: Set[TimeSlot] = field(default_factory=set)
 
@@ -121,3 +124,5 @@ class ScheduledClass:
     room: Room
     professor: Professor
     time_slot: TimeSlot
+
+
