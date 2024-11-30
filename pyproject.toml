@@ -1,22 +1,19 @@
-[tool.poetry]
+[project]
 name = "timetabler-ga"
 version = "0.1.0"
-description = "AWS Cloud Club's solution to the time table generation problem implemented using the genetic algorithm."
-authors = ["Penzulo <bhargav.deshpande@mitwpu.edu.in>"]
+description = "Add your description here"
 readme = "README.md"
+authors = [
+    { name = "Penzulo", email = "bhargav.deshpande@mitwpu.edu.in" }
+]
+requires-python = ">=3.10"
+dependencies = [
+    "prettytable>=3.12.0",
+    "streamlit>=1.40.1",
+]
 
-[tool.poetry.dependencies]
-python = ">=3.10"
-streamlit = "^1.39.0"
-pandas = "^2.2.3"
-prettytable = "^3.11.0"
-
-[tool.poetry.group.dev.dependencies]
-black = "^24.10.0"
-mypy = "^1.11.2"
-isort = "^5.13.2"
-pylsp-mypy = "^0.6.9"
-
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+[dependency-groups]
+dev = [
+    "black>=24.10.0",
+    "isort>=5.13.2",
+]

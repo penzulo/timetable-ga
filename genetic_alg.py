@@ -1,30 +1,34 @@
-from random import choice, random, sample
-from typing import Callable, List
+from datetime import datetime, timedelta
+from random import choice, randint, random, sample
+from typing import Callable, List, Optional, Tuple
 
-from models import ScheduledClass, TimeSlot
+from config import UNIVERSITY_END_TIME, UNIVERSITY_START_TIME
+from models import ScheduledClass
 from schedule import ScheduleOptimizer
+
+# Type Aliases
+SchedulePool = List[ScheduleOptimizer]
+SchedFactory = Callable[[], ScheduleOptimizer]
+NullableSchedulePool = Optional[SchedulePool]
 
 
 class Population:
     def __init__(
-        self, size: int, schedule_factory: Callable[[], ScheduleOptimizer]
+        self,
+        size: int,
+        schedule_factory: SchedFactory,
+        schedules: NullableSchedulePool = None,
     ) -> None:
         if not size > 0:
             raise ValueError("Expected a valid positive float for size.")
 
         self.size: int = size
-        self.schedules: List[ScheduleOptimizer] = [
-            self._create_independant_schedule(schedule_factory) for _ in range(size)
+        if schedules:
+            self.schedules: SchedulePool = schedules
+            return
+        self.schedules: SchedulePool = [
+            schedule_factory().create_schedule() for _ in range(size)
         ]
-
-    @staticmethod
-    def _create_independant_schedule(
-        schedule_factory: Callable[[], ScheduleOptimizer]
-    ) -> ScheduleOptimizer:
-        schedule = schedule_factory()
-        schedule.populate_time_slots()
-        schedule.create_schedule()
-        return schedule
 
     def evaulaute_fitness(self) -> None:
         for schedule in self.schedules:
@@ -33,17 +37,10 @@ class Population:
     def get_best_schedule(self) -> ScheduleOptimizer:
         return max(self.schedules, key=lambda s: s.fitness)
 
-    def select_parents(self) -> List[ScheduleOptimizer]:
-        total_fitness: float = sum(schedule.fitness for schedule in self.schedules)
-        if total_fitness == 0:
-            return sample(
-                self.schedules, 2
-            )  # If all fitnesses are 0, we will select randomly
-
-        return [
-            self._roulette_selection(total_fitness),
-            self._roulette_selection(total_fitness),
-        ]
+    def select_parents(self) -> Tuple[ScheduleOptimizer, ScheduleOptimizer]:
+        parent1: ScheduleOptimizer = self._tournament_selection(self.schedules)
+        parent2: ScheduleOptimizer = self._tournament_selection(self.schedules)
+        return parent1, parent2
 
     def _roulette_selection(self, total_fitness: float) -> ScheduleOptimizer:
         pick: float = random() * total_fitness
@@ -51,7 +48,7 @@ class Population:
         for schedule in self.schedules:
             current += (
                 schedule.fitness
-                if schedule.fitness != 0
+                if schedule.fitness != 0 or schedule.fitness != -1
                 else schedule.calculate_fitness()
             )
             if current > pick:
@@ -59,6 +56,10 @@ class Population:
 
         # In case of rounding errors, return the last one
         return self.schedules[-1]
+
+    def _tournament_selection(self, population: SchedulePool) -> ScheduleOptimizer:
+        tournament: SchedulePool = sample(population, len(population) * 5 // 100)
+        return max(tournament, key=lambda s: s.fitness)
 
 
 class EvolutionManager:
@@ -92,7 +93,7 @@ class EvolutionManager:
 
     def mutate(self, schedule_optimizer: ScheduleOptimizer) -> None:
         """
-        Applies mutation to a given schedule by modifying a random class's time slot.
+        Applies cascade mutation to a given schedule by modifying a random class's time slot.
 
         Args:
             schedule_optimizer (ScheduleOptimizer): The schedule to be mutated.
@@ -102,18 +103,18 @@ class EvolutionManager:
         """
         if random() < self._mutation_rate:
             random_class: ScheduledClass = choice(schedule_optimizer.raw_schedule)
-            random_time_slot: TimeSlot = choice(list(schedule_optimizer.time_slots))
+            new_start_time: datetime = random_class.time_slot.start + timedelta(
+                hours=randint(-1, 1)
+            )
 
-            # if not schedule_optimizer.is_conflicting(
-            #     random_time_slot, random_class.room, random_class.professor
-            # ):
-            random_class.time_slot = random_time_slot
+            if UNIVERSITY_START_TIME <= new_start_time <= UNIVERSITY_END_TIME:
+                random_class.time_slot.start = new_start_time
 
     def crossover(
         self,
         parent_a: ScheduleOptimizer,
         parent_b: ScheduleOptimizer,
-        schedule_factory: Callable[[], ScheduleOptimizer],
+        schedule_factory: SchedFactory,
     ) -> ScheduleOptimizer:
         """
         Creates an offspring schedule by combining the schedules of two parent schedules.
@@ -130,23 +131,21 @@ class EvolutionManager:
             # No crossover, return one parent
             return choice([parent_a, parent_b])
 
-        offspring = schedule_factory()
+        offspring: ScheduleOptimizer = schedule_factory()
 
         offspring.raw_schedule = [
             choice([class_a, class_b])
             for class_a, class_b in zip(parent_a.raw_schedule, parent_b.raw_schedule)
         ]
 
-        offspring.rooms = parent_a.rooms.copy()
-        offspring.lab_rooms = parent_a.lab_rooms.copy()
-        offspring.time_slots = parent_a.time_slots.copy()
-        offspring.departments = parent_a.departments.copy()
-        offspring.divisions = parent_a.divisions.copy()
-        offspring.fitness = offspring.calculate_fitness()
+        offspring.rooms = parent_a.rooms
+        offspring.lab_rooms = parent_b.lab_rooms
+        offspring.departments = parent_a.departments
+        offspring.divisions = parent_b.divisions
         return offspring
 
     def evolve(
-        self, population: Population, schedule_factory: Callable[[], ScheduleOptimizer]
+        self, population: Population, schedule_factory: SchedFactory
     ) -> Population:
         """
         Evolves a population to create the next generation of schedules.
@@ -161,19 +160,18 @@ class EvolutionManager:
         Returns:
             Population: The next generation of schedules.
         """
-        next_generation: List[ScheduleOptimizer] = [population.get_best_schedule()]
+        next_generation: SchedulePool = [population.get_best_schedule()]
 
         while len(next_generation) < len(population.schedules):
             parent_a, parent_b = population.select_parents()
-            try:
-                offspring = self.crossover(parent_a, parent_b, schedule_factory)
-                self.mutate(offspring)
-                next_generation.append(offspring)
-            except (IndexError, ValueError):
-                continue  # Skips this offspring if mutation or crossover fails
+            offspring = self.crossover(parent_a, parent_b, schedule_factory)
+            self.mutate(offspring)
+            next_generation.append(offspring)
 
         new_population: Population = Population(
-            size=len(next_generation), schedule_factory=schedule_factory
+            size=len(next_generation),
+            schedule_factory=schedule_factory,
+            schedules=next_generation,
         )
         new_population.schedules = next_generation
         new_population.evaulaute_fitness()

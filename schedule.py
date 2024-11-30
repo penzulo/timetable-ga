@@ -1,7 +1,7 @@
-from dataclasses import dataclass, field
+from collections import defaultdict
 from datetime import datetime
 from random import choice
-from typing import List, Optional, Set
+from typing import DefaultDict, List, Optional, Set, Tuple
 
 from constants import (
     DAYS_OF_WEEK,
@@ -12,27 +12,69 @@ from constants import (
     UNIVERSITY_END_TIME,
     UNIVERSITY_START_TIME,
 )
-from models import (
-    Course,
-    Department,
-    Division,
-    Professor,
-    Room,
-    ScheduledClass,
-    TimeSlot,
-)
+from models import Course, Department, Division, Room, ScheduledClass, TimeSlot
+
+# Type Aliases
+TimeSlots = List[TimeSlot]
+ScheduledClasses = List[ScheduledClass]
+Rooms = List[Room]
+Departments = List[Department]
+DivisionSet = Set[Division]
+DefaultConfCounter = DefaultDict[Tuple[str, str], int]
+LecConfCounter = DefaultDict[Tuple[str, int], int]
+LabConfCounter = DefaultDict[Tuple[str, int], DefaultDict[int, int]]
+
+# Nullable Types
+NullableTimeSlot = Optional[TimeSlot]
+NullableRoom = Optional[Room]
 
 
-@dataclass(repr=True)
+def create_timeslots() -> TimeSlots:
+    populated_time_slots: TimeSlots = []
+
+    for day in DAYS_OF_WEEK:
+        current_time: datetime = UNIVERSITY_START_TIME
+        while current_time + TIME_SLOT_DURATION <= UNIVERSITY_END_TIME:
+            if LUNCH_BREAK_START <= current_time < LUNCH_BREAK_END:
+                current_time += TIME_SLOT_DURATION
+                continue
+
+            populated_time_slots.append(
+                TimeSlot(
+                    day=day,
+                    start=current_time,
+                    duration=TIME_SLOT_DURATION,
+                )
+            )
+
+            if current_time + LAB_TIME_SLOT_DURATION <= UNIVERSITY_END_TIME:
+                populated_time_slots.append(
+                    TimeSlot(
+                        day=day,
+                        start=current_time,
+                        duration=LAB_TIME_SLOT_DURATION,
+                    )
+                )
+
+            current_time += TIME_SLOT_DURATION
+
+    return populated_time_slots
+
+
+time_slots: TimeSlots = create_timeslots()
+
+
 class ScheduleOptimizer:
-    # Trying to combine the Data and the Schedule class
-    raw_schedule: List[ScheduledClass] = field(default_factory=list)
-    rooms: List[Room] = field(default_factory=list)
-    lab_rooms: List[Room] = field(default_factory=list)
-    time_slots: Set[TimeSlot] = field(default_factory=set)
-    departments: List[Department] = field(default_factory=list)
-    divisions: Set[Division] = field(default_factory=set)
-    fitness: float = -1.0
+    def __init__(self) -> None:
+        self.raw_schedule: ScheduledClasses = []
+        self.rooms: Rooms = []
+        self.lab_rooms: Rooms = []
+        self.departments: Departments = []
+        self.divisions: DivisionSet = set()
+        self.fitness: float = -1.0
+
+    def __repr__(self) -> str:
+        return f"Schedule Object of fitness: {self.fitness}"
 
     def register_room(self, new_room: Room) -> None:
         self.rooms.append(new_room)
@@ -40,178 +82,19 @@ class ScheduleOptimizer:
     def register_lab_room(self, new_room: Room) -> None:
         self.lab_rooms.append(new_room)
 
-    def register_time_slot(self, new_time_slot: TimeSlot) -> None:
-        self.time_slots.add(new_time_slot)
-
     def register_department(self, new_dept: Department) -> None:
         self.departments.append(new_dept)
 
     def register_division(self, new_division: Division) -> None:
         self.divisions.add(new_division)
 
-    def populate_time_slots(self) -> None:
-        time_slot_id: int = 1
-
-        for day in DAYS_OF_WEEK:
-            current_time: datetime = UNIVERSITY_START_TIME
-            while current_time + TIME_SLOT_DURATION <= UNIVERSITY_END_TIME:
-                if LUNCH_BREAK_START <= current_time < LUNCH_BREAK_END:
-                    current_time += TIME_SLOT_DURATION
-                    continue
-
-                self.register_time_slot(
-                    TimeSlot(
-                        slot_id=f"MT{time_slot_id}",
-                        day=day,
-                        start=current_time.strftime("%H:%M"),
-                        end=(current_time + TIME_SLOT_DURATION).strftime("%H:%M"),
-                        duration=TIME_SLOT_DURATION,
-                    )
-                )
-                time_slot_id += 1
-
-                if current_time + LAB_TIME_SLOT_DURATION <= UNIVERSITY_END_TIME:
-                    self.register_time_slot(
-                        TimeSlot(
-                            slot_id=f"MT{time_slot_id}",
-                            day=day,
-                            start=current_time.strftime("%H:%M"),
-                            end=(current_time + LAB_TIME_SLOT_DURATION).strftime(
-                                "%H:%M"
-                            ),
-                            duration=LAB_TIME_SLOT_DURATION,
-                        )
-                    )
-                    time_slot_id += 1
-
-                current_time += TIME_SLOT_DURATION
-
     def create_schedule(self) -> "ScheduleOptimizer":
         self.raw_schedule.clear()
-        divisions: Set[Division] = {Division("A", 2), Division("B", 2)}
 
         for department in self.departments:
-            self._schedule_department(department, divisions)
+            self._schedule_department(department, self.divisions)
 
         return self
-
-    def _schedule_department(
-        self, department: Department, divisions: Set[Division]
-    ) -> None:
-        # Schedule lectures and labs for all courses in a department
-        for course in department.offered_courses:
-            for div in divisions:
-                self._schedule_course_lectures(course, div, department)
-                if course.weekly_labs > 0:
-                    self._schedule_course_labs(course, div, department)
-
-    def _schedule_course_lectures(
-        self, course: Course, division: Division, dept: Department
-    ) -> None:
-        lecture_slots: List[TimeSlot] = [
-            slot for slot in self.time_slots if slot.duration == TIME_SLOT_DURATION
-        ]
-        if not lecture_slots:
-            raise ValueError(f"Not enough free time slots for scheduling this lecture!")
-
-        for _ in range(course.weekly_lectures):
-            random_lecture_slot: Optional[TimeSlot] = self._choose_random_time_slot(
-                lecture_slots
-            )
-            # Check if the assigned professor of the course is available for this slot.
-            # If not, take a different slot and check again
-            # Repeat 5 times. If a time slot is available, reserve the professor and room else, raise ValueError
-            for _ in range(10):
-                if (
-                    course.assigned_professor is not None
-                    and random_lecture_slot is not None
-                    and not course.assigned_professor.is_reserved(random_lecture_slot)
-                ):
-                    break
-                random_lecture_slot = self._choose_random_time_slot(lecture_slots)
-            else:
-                continue  # Skip this iteration and go the next.
-                # raise ValueError(
-                #     f"Cannot schedule lecture due to limited professor availability"
-                # )
-
-            if random_lecture_slot is None:
-                continue  # Skip Iteration
-
-            lecture_slots.remove(random_lecture_slot)
-            random_room: Optional[Room] = self._choose_available_room(
-                random_lecture_slot
-            )
-
-            if random_room is None:
-                continue  # Skip iteration
-
-            self.book_and_add_class(
-                div=division,
-                department=dept,
-                course=course,
-                time_slot=random_lecture_slot,
-                room=random_room,
-            )
-
-    def _schedule_course_labs(
-        self, course: Course, div: Division, dept: Department
-    ) -> None:
-        lab_slots: List[TimeSlot] = [
-            slot for slot in self.time_slots if slot.duration == LAB_TIME_SLOT_DURATION
-        ]
-
-        if not lab_slots:
-            raise ValueError(f"Not enough free time slots to schedule this lab!")
-
-        for _ in range(course.weekly_labs):
-            for batch in range(1, div.num_batches + 1):
-                random_lab_slot: Optional[TimeSlot] = self._choose_random_time_slot(
-                    lab_slots
-                )
-                for _ in range(20):
-                    if (
-                        course.lab_professor is not None
-                        and random_lab_slot is not None
-                        and not course.lab_professor.is_reserved(random_lab_slot)
-                    ):
-                        break
-                    random_lab_slot = self._choose_random_time_slot(lab_slots)
-                else:
-                    continue
-                    # raise ValueError(
-                    #     f"Cannot schedule lab due to limited professor availability"
-                    # )
-
-                if random_lab_slot is None:
-                    continue  # Skip iteration
-
-                lab_slots.remove(random_lab_slot)
-                random_room: Optional[Room] = self._choose_available_room(
-                    random_lab_slot
-                )
-
-                if random_room is None:
-                    continue
-
-                self.book_and_add_class(
-                    div=div,
-                    batch=str(batch),
-                    department=dept,
-                    time_slot=random_lab_slot,
-                    course=course,
-                    room=random_room,
-                )
-
-    @staticmethod
-    def _choose_random_time_slot(time_slots: List[TimeSlot]) -> Optional[TimeSlot]:
-        return choice(time_slots) if time_slots else None
-
-    def _choose_available_room(self, time_slot: TimeSlot) -> Optional[Room]:
-        available_rooms: List[Room] = [
-            room for room in self.rooms if not room.is_reserved(time_slot)
-        ]
-        return choice(available_rooms) if available_rooms else None
 
     def book_and_add_class(
         self,
@@ -228,13 +111,13 @@ class ScheduleOptimizer:
             course.lab_professor.reserve_professor(time_slot)
             self.raw_schedule.append(
                 ScheduledClass(
-                    division=div,
-                    batch="All" if not batch else f"Batch {batch}",
-                    department=department,
+                    div=div,
+                    batch=f"Batch {batch}",
+                    dept=department,
                     course=course,
                     time_slot=time_slot,
                     room=room,
-                    professor=course.lab_professor,
+                    prof=course.lab_professor,
                 )
             )
             return
@@ -243,66 +126,188 @@ class ScheduleOptimizer:
             course.assigned_professor.reserve_professor(time_slot)
             self.raw_schedule.append(
                 ScheduledClass(
-                    division=div,
-                    batch="All" if not batch else f"Batch {batch}",
-                    department=department,
+                    div=div,
+                    batch="All",
+                    dept=department,
                     course=course,
                     time_slot=time_slot,
                     room=room,
-                    professor=course.assigned_professor,
+                    prof=course.assigned_professor,
                 )
             )
             return
 
-    def is_conflicting(
-        self,
-        time_slot: Optional[TimeSlot],
-        room: Optional[Room],
-        professor: Optional[Professor],
-    ) -> bool:
-        if not time_slot or not room or not professor:
-            return True
-
-        for cls in self.raw_schedule:
-            scheduled_time = cls.time_slot
-            # Skip if the time slots are on different days
-            if time_slot.day != scheduled_time.day:
-                continue
-
-            # Skip if the time slots do not overlap
-            if (
-                scheduled_time.end <= time_slot.start
-                or time_slot.start >= scheduled_time.end
-            ):
-                continue
-
-            # Conflict exists if the room or professor is already assigned.
-            if cls.room == room or cls.professor == professor:
-                return True
-
-        return False
-
     def calculate_fitness(self) -> float:
-        if len(self.raw_schedule) == 0:
-            return 0.0
+        conflicts = (
+            self._check_room_conflicts()
+            + self._check_professor_conflicts()
+            + self._check_lab_conflicts()
+            + self._check_lecture_conflicts()
+        )
+        max_conflicts = len(self.raw_schedule) * (len(self.raw_schedule) - 1) // 2
+        return max(0.0, 1.0 - (conflicts / max_conflicts))
 
-        conflicts: int = 0
+    def _schedule_department(
+        self, department: Department, divisions: DivisionSet
+    ) -> None:
+        for course in department.offered_courses:
+            for division in divisions:
+                self._schedule_course_lectures(course, division, department)
+                self._schedule_course_labs(course, division, department)
 
-        for i in range(len(self.raw_schedule)):
-            for j in range(i + 1, len(self.raw_schedule)):
-                class_a: ScheduledClass = self.raw_schedule[i]
-                class_b: ScheduledClass = self.raw_schedule[j]
-                if class_a.time_slot != class_b.time_slot:
+    def _schedule_course_lectures(
+        self, course: Course, division: Division, dept: Department
+    ) -> None:
+        lecture_slots: TimeSlots = [
+            slot
+            for slot in time_slots
+            if slot.duration == TIME_SLOT_DURATION
+            and (
+                course.assigned_professor is None
+                or not course.assigned_professor.is_reserved(slot)
+            )
+        ]
+        if not lecture_slots:
+            return
+
+        for _ in range(course.weekly_lectures):
+            random_lecture_slot: NullableTimeSlot = self._choose_random_time_slot(
+                lecture_slots
+            )
+            for _ in range(10):
+                if (
+                    course.assigned_professor is not None
+                    and random_lecture_slot is not None
+                    and not course.assigned_professor.is_reserved(random_lecture_slot)
+                ):
+                    break
+                random_lecture_slot = self._choose_random_time_slot(lecture_slots)
+            else:
+                continue  # Skip this iteration and go the next.
+
+            random_room: NullableRoom = self._choose_available_room(random_lecture_slot)
+
+            if random_room is None:
+                continue  # Skip iteration
+
+            self.book_and_add_class(
+                div=division,
+                department=dept,
+                course=course,
+                time_slot=random_lecture_slot,
+                room=random_room,
+            )
+
+    def _schedule_course_labs(
+        self, course: Course, div: Division, dept: Department
+    ) -> None:
+        lab_slots: TimeSlots = [
+            slot
+            for slot in time_slots
+            if slot.duration == LAB_TIME_SLOT_DURATION
+            and (
+                course.lab_professor is None
+                or not course.lab_professor.is_reserved(slot)
+            )
+        ]
+
+        if not lab_slots:
+            return
+
+        for _ in range(course.weekly_labs):
+            for batch in range(1, div.num_batches + 1):
+                random_lab_slot: NullableTimeSlot = self._choose_random_time_slot(
+                    lab_slots
+                )
+                for _ in range(10):
+                    if (
+                        course.lab_professor is not None
+                        and random_lab_slot is not None
+                        and not course.lab_professor.is_reserved(random_lab_slot)
+                    ):
+                        break
+                    random_lab_slot = self._choose_random_time_slot(lab_slots)
+                else:
                     continue
 
-                if class_a.room == class_b.room:
-                    conflicts += 1
+                random_room: NullableRoom = self._choose_available_room(random_lab_slot)
 
-                if class_a.professor == class_b.professor:
-                    conflicts += 1
+                if random_room is None:
+                    print("Can't find randomized room for scheduling a lab slot.")
+                    continue
 
-        max_possible_conflicts: int = (
-            len(self.raw_schedule) * (len(self.raw_schedule) - 1) // 2
-        )
+                self.book_and_add_class(
+                    div=div,
+                    batch=str(batch),
+                    department=dept,
+                    time_slot=random_lab_slot,
+                    course=course,
+                    room=random_room,
+                )
 
-        return max(0.0, 1.0 - (conflicts / max_possible_conflicts))
+    def _choose_available_room(self, time_slot: TimeSlot) -> NullableRoom:
+        available_rooms: Rooms = [
+            room for room in self.rooms if not room.is_reserved(time_slot)
+        ]
+        return choice(available_rooms) if available_rooms else None
+
+    @staticmethod
+    def _choose_random_time_slot(time_slots: TimeSlots) -> NullableTimeSlot:
+        return choice(time_slots) if time_slots else None
+
+    def _check_room_conflicts(self) -> int:
+        conflicts: DefaultConfCounter = defaultdict(int)
+        for scheduled_class in self.raw_schedule:
+            room_time_key = (
+                scheduled_class.room.number,
+                scheduled_class.time_slot.slot_id,
+            )
+            conflicts[room_time_key] += 1
+
+        return sum(count - 1 for count in conflicts.values() if count > 1)
+
+    def _check_professor_conflicts(self) -> int:
+        conflicts: DefaultConfCounter = defaultdict(int)
+        for scheduled_class in self.raw_schedule:
+            professor_time_key = (
+                scheduled_class.professor.professor_id,
+                scheduled_class.time_slot.slot_id,
+            )
+            conflicts[professor_time_key] += 1
+
+        return sum(count - 1 for count in conflicts.values() if count > 1)
+
+    def _check_lecture_conflicts(self) -> int:
+        counts: LecConfCounter = defaultdict(int)
+        conflicts: int = 0
+
+        for scheduled_class in self.raw_schedule:
+            if scheduled_class.time_slot.duration == TIME_SLOT_DURATION:
+                key = (
+                    scheduled_class.course.code,
+                    scheduled_class.course.weekly_lectures,
+                )
+                counts[key] += 1
+
+        for course, lectures in counts.items():
+            if lectures != course[1]:
+                conflicts += abs(lectures - course[1])
+
+        return conflicts
+
+    def _check_lab_conflicts(self) -> int:
+        counts: LabConfCounter = defaultdict(lambda: defaultdict(int))
+        conflicts: int = 0
+
+        for scheduled_class in self.raw_schedule:
+            if scheduled_class.time_slot.duration == LAB_TIME_SLOT_DURATION:
+                batch: int = int(scheduled_class.batch.split()[-1])
+                key = (scheduled_class.course.code, scheduled_class.course.weekly_labs)
+                counts[key][batch] += 1
+
+        for (_, weekly_labs), batch_counts in counts.items():
+            for batch, labs in batch_counts.items():
+                if labs != weekly_labs:
+                    conflicts += abs(labs - weekly_labs)
+
+        return conflicts
