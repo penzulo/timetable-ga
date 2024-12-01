@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from random import choice, randint, random, sample
 from typing import Callable, List, Optional, Tuple
 
-from config import UNIVERSITY_END_TIME, UNIVERSITY_START_TIME
+from constants import UNIVERSITY_END_TIME, UNIVERSITY_START_TIME
 from models import ScheduledClass
 from schedule import ScheduleOptimizer
 

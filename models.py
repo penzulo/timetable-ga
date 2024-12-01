@@ -40,7 +40,7 @@ class Professor:
         self, available_start: datetime, available_end: datetime, name: str
     ) -> None:
         self.name: str = name
-        self.professor_id = generate_id(n=4)
+        self.professor_id: str = generate_id(n=4)
         self.available_start: datetime = available_start
         self.available_end: datetime = available_end
         self.courses: List[Course] = []
@@ -190,7 +190,7 @@ class Division:
         self.num_batches: int = num_batches
 
     def __repr__(self) -> str:
-        return f"Division(name='{self.name}'m batches='{self.num_batches}')"
+        return f"Division(name='{self.name}', batches='{self.num_batches}')"
 
 
 class ScheduledClass:
@@ -215,12 +215,12 @@ class ScheduledClass:
     def __repr__(self) -> str:
         return (
             f"ScheduledClass("
-            f"division={self.division!r}, "
-            f"batch={self.batch!r}, "
-            f"department={self.department!r}, "
-            f"course={self.course.title!r}, "
-            f"room={self.room.number!r}, "
-            f"professor={self.professor.name!r}, "
-            f"time_slot={self.time_slot!r}"
+            f"division={self.division}, "
+            f"batch={self.batch}, "
+            f"department={self.department}, "
+            f"course={self.course.title}, "
+            f"room={self.room.number}, "
+            f"professor={self.professor.name}, "
+            f"time_slot={self.time_slot}"
             f")"
         )

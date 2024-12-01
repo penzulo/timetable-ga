@@ -19,7 +19,7 @@ TimeSlots = List[TimeSlot]
 ScheduledClasses = List[ScheduledClass]
 Rooms = List[Room]
 Departments = List[Department]
-DivisionSet = Set[Division]
+Divisions = Set[Division]
 Professors = List[Professor]
 
 # Callable Types
@@ -37,7 +37,7 @@ weekday_order: Dict[str, int] = {
 
 def sort_and_display(schedule: ScheduleOptimizer) -> PrettyTable:
     sorted_schedule: List[ScheduledClass] = sorted(
-        schedule.raw_schedule, key=lambda sched: sched.time_slot.slot_id
+        schedule.raw_schedule, key=lambda sched: (weekday_order.get(sched.time_slot.day), sched.time_slot.start)
     )
 
     table = PrettyTable()
@@ -126,14 +126,12 @@ def load_data() -> ScheduleOptimizer:
     departments = create_departments(data["departments"])
     assign_professors(depts=departments, professors=professors)
 
-    divisions: DivisionSet = {
+    divisions: Divisions = {
         Division(name=div["name"], num_batches=div["num_batches"])
         for div in data["divisions"]
     }
 
-    def register_entity(
-        entity_list: Iterable[Any], register_func: RegisterFunc
-    ) -> None:
+    def register_entity(entity_list: Iterable[Any], register_func: RegisterFunc) -> None:
         for entity in entity_list:
             try:
                 register_func(entity)

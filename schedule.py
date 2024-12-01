@@ -1,7 +1,7 @@
 from collections import defaultdict
 from datetime import datetime
 from random import choice
-from typing import DefaultDict, List, Optional, Set, Tuple
+from typing import DefaultDict, List, Optional, Tuple, Set
 
 from constants import (
     DAYS_OF_WEEK,
@@ -19,7 +19,7 @@ TimeSlots = List[TimeSlot]
 ScheduledClasses = List[ScheduledClass]
 Rooms = List[Room]
 Departments = List[Department]
-DivisionSet = Set[Division]
+Divisions = Set[Division]
 DefaultConfCounter = DefaultDict[Tuple[str, str], int]
 LecConfCounter = DefaultDict[Tuple[str, int], int]
 LabConfCounter = DefaultDict[Tuple[str, int], DefaultDict[int, int]]
@@ -70,7 +70,7 @@ class ScheduleOptimizer:
         self.rooms: Rooms = []
         self.lab_rooms: Rooms = []
         self.departments: Departments = []
-        self.divisions: DivisionSet = set()
+        self.divisions: Divisions = set()
         self.fitness: float = -1.0
 
     def __repr__(self) -> str:
@@ -148,7 +148,7 @@ class ScheduleOptimizer:
         return max(0.0, 1.0 - (conflicts / max_conflicts))
 
     def _schedule_department(
-        self, department: Department, divisions: DivisionSet
+        self, department: Department, divisions: Divisions
     ) -> None:
         for course in department.offered_courses:
             for division in divisions:

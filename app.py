@@ -50,7 +50,7 @@ def main() -> None:
             f"Generation {gen} -",
             f"Best Fitness: {best_fitness * 100:.3f} -",
             f" Took {timer() - start:.6f} seconds",
-            sep=" "
+            sep=" ",
         )
 
         current_population = evolution_manager.evolve(
